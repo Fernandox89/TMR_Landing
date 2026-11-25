@@ -5,6 +5,8 @@ import time
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from config.loader import load_settings
+
 from control.tello_driver import TelloDriver
 from vision.vision_system import VisionSystem
 from ui.telemetry_hud import TelemetryHUD
@@ -15,9 +17,10 @@ def main():
     print("Mueve el dron con la mano para engañar a los sensores y ver si los estados cambian.")
     
     driver = TelloDriver()
-    vision = VisionSystem(flip_code=0, marker_size_cm=10.0)
+    settings = load_settings()
+    vision = VisionSystem(**settings["vision"])
     hud = TelemetryHUD()
-    fsm = StateMachine()
+    fsm = StateMachine(**settings["fsm"])
 
     driver.connect()
     time.sleep(3)

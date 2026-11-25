@@ -1,0 +1,151 @@
+{
+  "_comentario": "Todas las llaves que empiezan con '_' son comentarios y el cargador las ignora. Ver docs/CAMBIOS.md para el significado de cada parametro.",
+
+  "vision": {
+    "_comentario": "flip_code=1 es el que se uso en el vuelo de test_tracking.py que funciono.",
+    "flip_code": 1,
+    "marker_size_cm": 10.0,
+    "aruco_dict": "DICT_6X6_100",
+    "_marker_id": "null = acepta cualquier ID (toma el mas grande en imagen). Pon un numero para aceptar solo ese ID.",
+    "marker_id": null,
+    "_marker_sizes_cm": "Tamano por ID si usas varios marcadores de distinto tamano, ej. {\"0\": 15.0, \"1\": 5.0}",
+    "marker_sizes_cm": {},
+    "_camera_matrix": "Aproximada. Reemplazala corriendo tools/calibrate_camera.py (escribe aqui automaticamente).",
+    "camera_matrix": [[920.0, 0.0, 480.0], [0.0, 920.0, 360.0], [0.0, 0.0, 1.0]],
+    "dist_coeffs": [0.0, 0.0, 0.0, 0.0, 0.0]
+  },
+
+  "navigator": {
+    "_setpoint": "Donde debe quedar el ArUco respecto a la camara (cm) para que el dron quede centrado. Ajustar si el espejo esta adelantado al centro del dron.",
+    "setpoint_x_cm": 0.0,
+    "setpoint_y_cm": 0.0,
+
+    "_vel_scale": "Convierte la velocidad que reporta el Tello a cm/s. El Tello suele reportar dm/s -> 10. Confirmar con tools/analyze_log.py.",
+    "vel_scale_x": 10.0,
+    "vel_scale_y": 10.0,
+    "_vel_sign": "+1 o -1. Relacion entre velocidad del dron y movimiento del ArUco en la imagen. Confirmar con tools/analyze_log.py.",
+    "_vel_sign_x_nota": "-1 con el espejo del laboratorio (voltea arriba-abajo) + flip_code=1: la imagen queda girada 180 y la X de la camara apunta a la IZQUIERDA del dron, al reves de vgy. Medido en Tello-Sim-Lab (correlacion 0.96). Confirmar en vuelo.",
+    "vel_sign_x": -1.0,
+    "vel_sign_y": 1.0,
+
+    "_axis_sign": "Signo final del comando. Roll=+1, Pitch=-1 es la convencion que funciono en vuelo. Solo cambiar si el dron huye del ArUco en ese eje.",
+    "axis_sign_roll": 1.0,
+    "axis_sign_pitch": -1.0,
+
+    "_feedforward": "Comando rc extra por cada cm/s de velocidad estimada de la plataforma. 0 = desactivado (solo PID).",
+    "feedforward_gain": 0.7,
+    "_rc_deadband": "Debajo de este rc el Tello casi no se mueve (medido: ~5). Se suma a todo comando horizontal distinto de 0 para que las correcciones chicas si muevan al dron.",
+    "rc_deadband": 5.0,
+
+    "pid_x": {"kp": 1.75, "ki": 0.0, "kd": 0.4, "min_out": -50, "max_out": 50, "integral_limit": 50.0},
+    "pid_y": {"kp": 1.9,  "ki": 0.0, "kd": 0.4, "min_out": -50, "max_out": 50, "integral_limit": 50.0},
+
+    "kalman": {
+      "_std_acc_target": "Que tan bruscos son los cambios de velocidad de la plataforma (cm/s^2). Mas alto = reacciona mas rapido a los cambios de sentido.",
+      "std_acc_target": 40.0,
+      "_std_pos_process": "Incertidumbre extra por ciclo en la posicion (cm/s). Cubre errores de la velocidad del dron.",
+      "std_pos_process": 5.0,
+      "_std_vision": "Ruido del ArUco en cm.",
+      "std_vision": 1.5
+    },
+
+    "_reset_after_lost_s": "Si el ArUco se pierde mas de este tiempo, al reaparecer se reinicia el filtro en la medicion.",
+    "reset_after_lost_s": 3.0,
+    "_target_vel_decay_s": "Constante de tiempo con la que se 'olvida' la velocidad de la plataforma mientras no se ve.",
+    "target_vel_decay_s": 3.0,
+    "_max_target_speed_cm_s": "Limite fisico de la velocidad de la plataforma (evita estimaciones absurdas).",
+    "max_target_speed_cm_s": 80.0,
+    "_vision_latency_s": "Retraso aproximado del video del Tello. Se compensa adelantando la medicion con la velocidad estimada. 0 = sin compensacion.",
+    "vision_latency_s": 0.17,
+    "reversal": {
+      "_comentario": "Detector de cambios de sentido de la plataforma (ver logic/reversal_predictor.py).",
+      "min_speed_cm_s": 5.0,
+      "min_interval_s": 1.0,
+      "confirm_s": 0.4
+    }
+  },
+
+  "fsm": {
+    "takeoff_settle_s": 2.0,
+    "visible_to_track_s": 0.5,
+    "lost_to_search_s": 2.0,
+    "_center": "Radio (cm) para considerarse centrado y tiempo centrado para iniciar descenso.",
+    "center_radius_cm": 12.0,
+    "centered_to_descend_s": 1.0,
+    "_descent_abort": "Si durante el descenso el error supera este radio por este tiempo, regresa a SEGUIMIENTO.",
+    "descent_abort_radius_cm": 30.0,
+    "descent_abort_s": 0.5,
+    "descent_lost_abort_s": 1.5,
+    "_blind": "Debajo de esta altura ToF, perder el ArUco se considera punto ciego (normal) y no un error.",
+    "blind_tof_cm": 40.0,
+    "blind_timeout_s": 4.0,
+    "_blind_force_land_tof_cm": "Si se acaba el tiempo en punto ciego pero estamos debajo de esta altura, aterriza en vez de abortar.",
+    "blind_force_land_tof_cm": 35.0,
+    "touchdown_tof_cm": 20.0
+  },
+
+  "mission": {
+    "loop_hz": 30,
+    "_takeoff_extra_cm": "Cuanto sube despues del despegue con move_up (minimo 20, 0 = nada). Recomendado 0: move_up BLOQUEA el programa unos segundos en los que el dron deriva sin control; BUSQUEDA ya sube con rc a search_tof_cm manteniendo la posicion.",
+    "takeoff_extra_cm": 0,
+    "min_battery_takeoff": 30,
+    "min_battery_flight": 15,
+
+    "_search": "Durante BUSQUEDA: primero sigue la prediccion del Kalman y despues de search_predict_s se queda quieto subiendo hasta search_tof_cm (medido con ToF, la altura 'h' del Tello no es confiable).",
+    "search_predict_s": 1.5,
+    "search_tof_cm": 130,
+    "search_climb_rc": 30,
+    "_search_hold": "Durante BUSQUEDA sin ArUco: mantener la posicion integrando la velocidad del Tello (con rc 0 deriva sola, ~5-12 cm/s). rc = -(kp*desplazamiento_cm + kv*velocidad_cm_s).",
+    "search_hold_kp": 0.3,
+    "search_hold_kv": 0.8,
+    "search_hold_max_rc": 25,
+    "_search_spiral": "Si en BUSQUEDA no aparece el ArUco en search_spiral_after_s (largo a proposito: la plataforma va y viene y suele volver a pasar; salir antes de su linea empeora las cosas), recorre una espiral cuadrada con pasos de search_spiral_step_cm (aprox. lo que ve la camara a la altura de busqueda), search_spiral_dwell_s en cada punto, hasta search_spiral_max_cm.",
+    "search_spiral_after_s": 12.0,
+    "search_spiral_step_cm": 60,
+    "search_spiral_dwell_s": 3.0,
+    "search_spiral_max_cm": 120,
+
+    "_alt_hold": "El Tello se hunde al moverse (5-8 cm/s medidos), asi que con throttle 0 no mantiene altura. Al seguir/buscar/esperar se controla la altura con el ToF: rc = kp * (objetivo - ToF), limitado.",
+    "track_tof_cm": 110,
+    "alt_hold_kp": 1.5,
+    "alt_hold_max_rc": 60,
+    "alt_hold_deadband_cm": 4,
+    "_sink_comp_rc": "rc extra hacia arriba mientras se mantiene altura y el dron se mueve en roll Y pitch a la vez (se hunde ~8 cm/s).",
+    "sink_comp_rc": 20,
+
+    "_descent": "Velocidad de bajada (rc, valor positivo). Se usa la lenta debajo de descent_slow_tof_cm. El Tello baja MUY lento por rc (~0.15 cm/s por unidad, medido): rc 50 ~ 7 cm/s.",
+    "descent_rc_fast": 60,
+    "descent_rc_slow": 50,
+    "descent_slow_tof_cm": 70,
+    "_descent_gate_cm": "Solo baja si el error estimado es menor a esto. Si no, mantiene altura y corrige.",
+    "descent_gate_cm": 15.0,
+    "blind_descent_rc": 60,
+
+    "_reversal_gate": "No entrar a la bajada final (debajo de commit_tof_cm) si la plataforma va a cambiar de sentido antes de final_phase_s, o si cambio hace menos de reversal_settle_s. Se queda a esa altura siguiendo hasta que haya ventana.",
+    "reversal_gate": true,
+    "_commit_tof_cm_nota": "Debe quedar arriba de fsm.blind_tof_cm + alt_hold_deadband_cm + margen: si la altura de espera cae en la zona de punto ciego, perder el ArUco ahi se confunde con el punto ciego y baja a ciegas (visto en Tello-Sim-Lab con humo).",
+    "commit_tof_cm": 58,
+    "_final_phase_s": "Lo que tarda la bajada final desde commit_tof_cm hasta el corte. Medirlo en los logs (duracion de DESCENSO bajo commit + PUNTO_CIEGO).",
+    "final_phase_s": 5.0,
+    "reversal_settle_s": 0.8,
+    "_require_period_if_moving": "Si la plataforma se mueve, no hacer la bajada final hasta haber aprendido cada cuanto cambia de sentido (2 cambios).",
+    "require_period_if_moving": true,
+    "_max_gate_wait_s": "Tiempo maximo esperando ventana a la altura commit_tof_cm. Despues baja de todos modos.",
+    "max_gate_wait_s": 20.0,
+
+    "_final_mode": "'emergency' corta motores (cae los ultimos cm, recomendado en plataforma movil) o 'land' (aterrizaje lento del Tello).",
+    "final_mode": "emergency",
+
+    "_dry_run": "true = no despega nunca. Se puede forzar con: python main.py --dry-run",
+    "dry_run": false
+  },
+
+  "logging": {
+    "enabled": true,
+    "directory": "logs",
+    "_record_video": "Graba el video con HUD a logs/. Pesa, pero sirve mucho para revisar un vuelo.",
+    "record_video": true,
+    "_video_fps": "Pon el mismo valor que mission.loop_hz para que el video no se vea acelerado o lento.",
+    "video_fps": 30
+  }
+}

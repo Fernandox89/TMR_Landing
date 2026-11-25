@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Vuelos guardados por main.py (CSV + video)
+logs/

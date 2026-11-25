@@ -6,13 +6,14 @@ from djitellopy import Tello
 
 # Esto permite que Python encuentre tu carpeta 'vision' desde la carpeta 'tests'
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from config.loader import load_settings
 
 # 1. Importamos solo la clase unificadora
 from vision.vision_system import VisionSystem
 
 def main():
     # 2. Inicializamos el sistema completo con una sola línea
-    vision = VisionSystem(flip_code=0, marker_size_cm=10.0)
+    vision = VisionSystem(**load_settings()["vision"])
 
     tello = Tello()
     tello.connect()

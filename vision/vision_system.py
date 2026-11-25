@@ -8,10 +8,11 @@ from vision.image_processor import ImageProcessor
 from vision.aruco_tracker import ArucoTracker
 
 class VisionSystem:
-    def __init__(self, flip_code=0, marker_size_cm=10.0):
-        # La clase "padre" instancia a sus "hijos" internamente
+    def __init__(self, flip_code=0, marker_size_cm=10.0, **tracker_kwargs):
+        # La clase "padre" instancia a sus "hijos" internamente.
+        # tracker_kwargs: aruco_dict, marker_id, marker_sizes_cm, camera_matrix, dist_coeffs
         self.processor = ImageProcessor(flip_code=flip_code)
-        self.tracker = ArucoTracker(marker_size_cm=marker_size_cm)
+        self.tracker = ArucoTracker(marker_size_cm=marker_size_cm, **tracker_kwargs)
 
     def update(self, frame_crudo):
         """
@@ -23,8 +24,8 @@ class VisionSystem:
 
         # 1. El procesador limpia el efecto espejo
         frame_limpio = self.processor.process_frame(frame_crudo)
-        
+
         # 2. El tracker hace la matemática 3D
         corners, ids, pos_cm = self.tracker.detect_and_estimate(frame_limpio)
-        
+
         return frame_limpio, ids, pos_cm

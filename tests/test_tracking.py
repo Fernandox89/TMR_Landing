@@ -5,6 +5,8 @@ import time
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from config.loader import load_settings
+
 from control.tello_driver import TelloDriver
 from vision.vision_system import VisionSystem
 from ui.telemetry_hud import TelemetryHUD
@@ -14,9 +16,10 @@ def main():
     print("--- TEST DE VUELO 1: SEGUIMIENTO X, Y (SIN DESCENSO) ---")
     
     driver = TelloDriver()
-    vision = VisionSystem(flip_code=1, marker_size_cm=10.0)
+    settings = load_settings()
+    vision = VisionSystem(**settings["vision"])
     hud = TelemetryHUD()
-    navigator = Navigator() # Aquí viven tus PIDs
+    navigator = Navigator(**settings["navigator"]) # Aquí viven tus PIDs y el Kalman
 
     driver.connect()
     time.sleep(3)

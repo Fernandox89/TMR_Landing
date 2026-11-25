@@ -13,7 +13,7 @@ class TelemetryHUD:
         self.color_danger = (0, 0, 255)
         self.bg_color = (0, 0, 0)
 
-    def draw(self, frame, telemetry, mission_state="INACTIVO", target_pos=None):
+    def draw(self, frame, telemetry, mission_state="INACTIVO", target_pos=None, extra_lines=None):
         if frame is None:
             return None
             
@@ -45,5 +45,15 @@ class TelemetryHUD:
             cv2.putText(frame, f"ARUCO -> X:{x:.1f} Y:{y:.1f} Z:{z:.1f}", (10, 130), self.font, self.font_scale, self.color_ok, self.thickness)
         else:
             cv2.putText(frame, "ARUCO -> NO DETECTADO", (10, 130), self.font, self.font_scale, self.color_danger, self.thickness)
+
+        # 6. Líneas extra (estimación del Kalman, comandos, avisos) en la esquina inferior
+        if extra_lines:
+            h = frame.shape[0]
+            y0 = h - 10 - 25 * (len(extra_lines) - 1)
+            overlay = frame.copy()
+            cv2.rectangle(overlay, (0, y0 - 22), (520, h), self.bg_color, -1)
+            cv2.addWeighted(overlay, 0.5, frame, 0.5, 0, frame)
+            for i, line in enumerate(extra_lines):
+                cv2.putText(frame, line, (10, y0 + 25 * i), self.font, self.font_scale, self.color_text, self.thickness)
 
         return frame

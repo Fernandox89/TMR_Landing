@@ -1,70 +1,82 @@
 import numpy as np
 
-class KalmanPosicion:
-    def __init__(self, dt, std_acc, std_vision):
-        """
-        dt: Tiempo entre iteraciones (ej. 0.1 para 10Hz)
-        std_acc: Ruido de proceso (qué tanto cambia la velocidad)
-        std_vision: Ruido de medición (qué tanto confiamos en el ArUco)
-        """
-        self.dt = dt
-        
-        # 1. ESTADO INICIAL [Posición (cm), Velocidad (cm/s)]
-        self.x = np.array([[0.0], 
-                           [0.0]])
-        
-        # 2. MATRIZ DE TRANSICIÓN DE ESTADO (F)
-        # Cambiado para que la velocidad interna no duplique el efecto 
-        # si ya estamos inyectando la velocidad medida por el dron.
-        self.F = np.array([[1, 0.0],
-                           [0, 0.0]])
-        
-        # 3. MATRIZ DE CONTROL (B) - Modificada para recibir VELOCIDAD directa
-        # Como el Tello nos da cm/s, el cambio en posición es: velocidad * dt
-        # El signo es NEGATIVO porque avanzar (+vel) reduce la distancia al marco.
-        self.B = np.array([[-self.dt],
-                           [1.0]])
-        
-        # 4. MATRIZ DE MEDICIÓN (H) - Solo el ArUco mide posición
-        self.H = np.array([[1, 0]])
-        
-        # 5. COVARIANZA DEL ERROR (P) - Incertidumbre inicial alta
-        self.P = np.eye(2) * 500
-        
-        # 6. RUIDO DE PROCESO (Q) - Ajustado para control por velocidad
-        self.Q = np.array([[self.dt**2, 0.0],
-                           [0.0, 1.0]]) * std_acc**2
-        
-        # 7. RUIDO DE MEDICIÓN (R) - Error del sensor visual
-        self.R = std_vision
+class KalmanObjetivo:
+    """
+    Filtro de Kalman de UN eje (se usa uno para X y otro para Y).
 
-    def predict(self, velocity):
-        """Paso de Predicción: Ocurre siempre usando la velocidad del Tello"""
+    ESTADO  x = [ p , v_obj ]
+        p     : posición del ArUco relativa a la cámara (cm). Es lo que mide el PnP.
+        v_obj : velocidad de la PLATAFORMA en ese eje (cm/s). Nadie la mide directo,
+                el filtro la deduce viendo cómo cambia p.
+
+    MODELO  (cada ciclo de duración dt)
+        p     <- p + dt * (v_obj - v_dron)     el ArUco se aleja si la plataforma avanza
+                                               y se acerca si el dron avanza hacia él
+        v_obj <- v_obj                         la plataforma va a velocidad constante
+                                               (los cambios de sentido entran como ruido Q)
+
+    v_dron es la velocidad del dron ya convertida a cm/s y al mismo eje que p
+    (la conversión de unidades y signo la hace el Navigator).
+    """
+
+    def __init__(self, std_acc_target=40.0, std_pos_process=5.0, std_vision=1.5):
+        """
+        std_acc_target : cm/s^2. Qué tan bruscos son los cambios de velocidad de la plataforma.
+        std_pos_process: cm/sqrt(s). Ruido extra en la posición (errores en la velocidad del dron).
+        std_vision     : cm. Qué tanto ruido tiene la medición del ArUco.
+        """
+        self.std_acc_target = std_acc_target
+        self.std_pos_process = std_pos_process
+        self.R = np.array([[std_vision ** 2]])
+        self.H = np.array([[1.0, 0.0]])  # Solo el ArUco mide, y solo mide posición
+        self.reset()
+
+    def reset(self, p=0.0, v_obj=0.0):
+        self.x = np.array([[p], [v_obj]], dtype=float)
+        # Incertidumbre inicial alta en ambas variables
+        self.P = np.diag([500.0, 400.0])
+
+    @property
+    def position(self):
+        return float(self.x[0, 0])
+
+    @property
+    def target_velocity(self):
+        return float(self.x[1, 0])
+
+    def predict(self, drone_velocity_cm_s, dt):
+        """Paso de Predicción: ocurre SIEMPRE, se vea o no el ArUco."""
+        F = np.array([[1.0, dt],
+                      [0.0, 1.0]])
+        B = np.array([[-dt],
+                      [0.0]])
+        # Ruido de proceso: aceleración aleatoria de la plataforma + ruido de posición
+        G = np.array([[0.5 * dt ** 2], [dt]])
+        Q = (G @ G.T) * self.std_acc_target ** 2
+        Q[0, 0] += self.std_pos_process ** 2 * dt
+
         # x = F*x + B*u
-        # Al pasarle 'velocity' positiva, B se encargará de restar distancia en el estado x[0][0]
-        self.x = np.dot(self.F, self.x) + np.dot(self.B, velocity)
-        
+        self.x = F @ self.x + B * drone_velocity_cm_s
         # P = F*P*F' + Q
-        # Forzar un piso mínimo de incertidumbre en P para que el filtro no se sature 
-        # y acepte números negativos sin trabarse matemáticamente
-        F_dinamica = np.array([[1, -self.dt], [0, 1]]) # Dinámica real para la covarianza
-        self.P = np.dot(np.dot(F_dinamica, self.P), F_dinamica.T) + self.Q
-        
-        return self.x[0][0] # Retorna posición estimada (distancia restante)
+        self.P = F @ self.P @ F.T + Q
+        return self.position
 
     def update(self, pos_measured):
-        """Paso de Corrección: Solo cuando ves un ArUco (PnP da la distancia real)"""
+        """Paso de Corrección: solo cuando vemos el ArUco (PnP da la posición real)."""
         # S = H*P*H' + R
-        S = np.dot(np.dot(self.H, self.P), self.H.T) + self.R
-        
+        S = self.H @ self.P @ self.H.T + self.R
         # K = P*H' * inv(S) (Ganancia de Kalman)
-        K = np.dot(np.dot(self.P, self.H.T), np.linalg.inv(S))
-        
+        K = self.P @ self.H.T @ np.linalg.inv(S)
         # y = medida - predicción (Innovación)
-        y = pos_measured - np.dot(self.H, self.x)
-        
+        y = pos_measured - (self.H @ self.x)[0, 0]
         # Actualizar estado y covarianza
-        self.x = self.x + np.dot(K, y)
-        self.P = self.P - np.dot(np.dot(K, self.H), self.P)
-        
-        return self.x[0][0]
+        self.x = self.x + K * y
+        self.P = (np.eye(2) - K @ self.H) @ self.P
+        return self.position
+
+    def decay_target_velocity(self, factor):
+        """Multiplica v_obj por factor (0..1). Se usa para 'olvidar' la velocidad cuando no vemos el ArUco."""
+        self.x[1, 0] *= factor
+
+    def clamp_target_velocity(self, max_abs):
+        self.x[1, 0] = max(-max_abs, min(max_abs, self.x[1, 0]))
