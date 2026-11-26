@@ -61,10 +61,11 @@ class KalmanObjetivo:
         self.P = F @ self.P @ F.T + Q
         return self.position
 
-    def update(self, pos_measured):
-        """Paso de Corrección: solo cuando vemos el ArUco (PnP da la posición real)."""
+    def update(self, pos_measured, noise_scale=1.0):
+        """Paso de Corrección: solo cuando vemos el ArUco (PnP da la posición real).
+        noise_scale > 1: medición menos confiable (p. ej. esquinas seguidas por flujo óptico)."""
         # S = H*P*H' + R
-        S = self.H @ self.P @ self.H.T + self.R
+        S = self.H @ self.P @ self.H.T + self.R * noise_scale ** 2
         # K = P*H' * inv(S) (Ganancia de Kalman)
         K = self.P @ self.H.T @ np.linalg.inv(S)
         # y = medida - predicción (Innovación)

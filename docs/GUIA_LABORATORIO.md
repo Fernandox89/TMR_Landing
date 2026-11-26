@@ -17,7 +17,7 @@ cd ~/TMR_Landing
 ```bash
 python3 -m pytest tests/unit -q
 ```
-Deben pasar **45 pruebas**.
+Deben pasar **51 pruebas**.
 
 Opcional, pero muy recomendable: prueba la misión completa en
 [Tello-Sim-Lab](https://github.com/DroneOps/Tello-Sim-Lab) (ver `docs/CAMBIOS.md`, sección 6).
@@ -208,6 +208,17 @@ python3 main.py
 | `Cambio de sentido cada` da valores raros | Sube `navigator.reversal.min_speed_cm_s` o `confirm_s` |
 
 ---
+
+## Si el ArUco refleja la luz (tarjeta enmicada)
+
+Lo primero es imprimirlo en papel **mate**. Mientras tanto, `vision.corner_tracking` (activado por
+defecto) sigue las esquinas por flujo óptico durante los cuadros en que el reflejo impide
+detectarlo:
+
+- **En el HUD:** el marcador se dibuja en **amarillo** y aparece `ARUCO SEGUIDO (flujo optico)`.
+- **En el analizador:** la sección 5 dice qué porcentaje fue detectado y qué porcentaje seguido.
+- **Si el cuadro amarillo se separa del ArUco real**, baja `max_track_s` (2 → 1) o apágalo
+  con `"enabled": false`.
 
 ## Seguridad durante todas las pruebas
 

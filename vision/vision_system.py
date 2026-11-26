@@ -10,7 +10,8 @@ from vision.aruco_tracker import ArucoTracker
 class VisionSystem:
     def __init__(self, flip_code=0, marker_size_cm=10.0, **tracker_kwargs):
         # La clase "padre" instancia a sus "hijos" internamente.
-        # tracker_kwargs: aruco_dict, marker_id, marker_sizes_cm, camera_matrix, dist_coeffs
+        # tracker_kwargs: aruco_dict, marker_id, marker_sizes_cm, camera_matrix, dist_coeffs,
+        #                 corner_tracking (ver vision/corner_tracker.py)
         self.processor = ImageProcessor(flip_code=flip_code)
         self.tracker = ArucoTracker(marker_size_cm=marker_size_cm, **tracker_kwargs)
 
@@ -29,3 +30,8 @@ class VisionSystem:
         corners, ids, pos_cm = self.tracker.detect_and_estimate(frame_limpio)
 
         return frame_limpio, ids, pos_cm
+
+    @property
+    def last_source(self):
+        """De dónde salió la última posición: "detected", "tracked" (flujo óptico) o None."""
+        return self.tracker.last_source

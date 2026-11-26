@@ -12,7 +12,19 @@
     "marker_sizes_cm": {},
     "_camera_matrix": "Aproximada. Reemplazala corriendo tools/calibrate_camera.py (escribe aqui automaticamente).",
     "camera_matrix": [[920.0, 0.0, 480.0], [0.0, 920.0, 360.0], [0.0, 0.0, 1.0]],
-    "dist_coeffs": [0.0, 0.0, 0.0, 0.0, 0.0]
+    "dist_coeffs": [0.0, 0.0, 0.0, 0.0, 0.0],
+    "corner_tracking": {
+      "_comentario": "Cuando el detector falla (reflejo, desenfoque, humo) sigue las esquinas del ultimo ArUco detectado por flujo optico. Ver vision/corner_tracker.py. enabled=false lo apaga.",
+      "enabled": true,
+      "_max_track_s": "Segundos maximos siguiendo sin una deteccion real.",
+      "max_track_s": 2.0,
+      "fb_max_px": 1.0,
+      "min_points": 8,
+      "max_features": 40,
+      "min_area_ratio": 0.6,
+      "max_area_ratio": 1.6,
+      "min_side_ratio": 0.5
+    }
   },
 
   "navigator": {
@@ -36,6 +48,8 @@
     "feedforward_gain": 0.7,
     "_rc_deadband": "Debajo de este rc el Tello casi no se mueve (medido: ~5). Se suma a todo comando horizontal distinto de 0 para que las correcciones chicas si muevan al dron.",
     "rc_deadband": 5.0,
+    "_tracked_noise_scale": "Una posicion SEGUIDA por flujo optico entra al Kalman con este multiplo del ruido de vision (menos confianza que una deteccion).",
+    "tracked_noise_scale": 2.0,
 
     "pid_x": {"kp": 1.75, "ki": 0.0, "kd": 0.4, "min_out": -50, "max_out": 50, "integral_limit": 50.0},
     "pid_y": {"kp": 1.9,  "ki": 0.0, "kd": 0.4, "min_out": -50, "max_out": 50, "integral_limit": 50.0},

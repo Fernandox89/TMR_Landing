@@ -26,7 +26,7 @@ Ahora:
 | Toque final | `land()` lento del Tello | Corte de motores (`emergency`) a 20 cm, configurable |
 | Seguridad | Ninguna | Batería mínima, `try/finally` que siempre aterriza, tecla de emergencia |
 | Registro | Ninguno | CSV + video por vuelo en `logs/` y analizador automático |
-| Pruebas | Scripts manuales con el dron | 45 pruebas automáticas (`pytest`) + simulador propio + pruebas en **Tello-Sim-Lab** (sección 6) |
+| Pruebas | Scripts manuales con el dron | 51 pruebas automáticas (`pytest`) + simulador propio + pruebas en **Tello-Sim-Lab** (sección 6) |
 
 ---
 
@@ -385,3 +385,76 @@ tiempo real y no es determinista: la misma semilla puede dar resultados distinto
   `tools/analyze_log.py`.
 - Si el espejo voltea la imagen de lado (`--camera-set mirror_axis=h`), los signos cambian y el
   dron se aleja (comprobado). Revisar los signos con `--dry-run` (paso 3 de la guía) si cambia el clip.
+
+---
+
+## 7. Seguimiento de esquinas por flujo óptico (reflejos)
+
+**El problema:** la tarjeta enmicada refleja las lámparas. Cuando el reflejo cae sobre el borde
+negro del ArUco, el detector no lo encuentra, aunque el resto del marcador se vea bien. Pasó en
+el laboratorio, y ahora Tello-Sim-Lab lo reproduce con `--glare`.
+
+### Cómo funciona ([vision/corner_tracker.py](../vision/corner_tracker.py))
+
+1. **Cuando el detector encuentra el ArUco:** se guardan la imagen y las 4 esquinas, y se buscan
+   ~40 puntos con textura **dentro** del marcador (las esquinas entre celdas blancas y negras).
+   Esa es la "referencia".
+2. **Cuando el detector falla:**
+   - esos puntos se siguen con Lucas-Kanade (`cv2.calcOpticalFlowPyrLK`);
+   - cada punto se sigue de ida y de regreso, y si no vuelve a su lugar (error > 1 px) se descarta;
+   - con los que quedan se calcula una **homografía** de la referencia al cuadro actual con
+     RANSAC, que descarta los puntos tapados por el reflejo;
+   - esa homografía mueve las 4 esquinas originales.
+3. **Con esas esquinas** se calcula la posición con el **mismo `solvePnP`** que usa el detector.
+4. **El resultado se rechaza** si quedan menos de 8 puntos buenos, si la forma no es razonable
+   (no convexa, lados muy desiguales, área muy distinta a la de la referencia), si las esquinas
+   salen de la imagen, o si pasaron más de `max_track_s` (2 s) desde la última detección real.
+   Una posición inventada es peor que ninguna.
+
+### Cómo está dividido (modular)
+
+| Pieza | Qué hace | Qué NO sabe |
+|---|---|---|
+| `CornerTracker` | `reset(gris, esquinas)` y `track(gris)` → esquinas o `None` | Nada de ArUco, PnP, ni del dron |
+| `ArucoTracker` | Si el detector falla y tiene un `CornerTracker`, lo usa; guarda en `last_source` si el dato fue `"detected"` o `"tracked"` | Cómo se siguen los puntos |
+| `Navigator` / `KalmanObjetivo` | Una medición `tracked` entra al Kalman con `tracked_noise_scale` (×2) de ruido: ayuda, pero se confía más en las detecciones | De dónde vienen las mediciones |
+| `main.py`, log, HUD, analizador | Muestran y registran la fuente (columna `source` del CSV) | — |
+
+Se configura en `settings.json` → `vision.corner_tracking`; `"enabled": false` lo apaga por
+completo. También se corrigió que dos programas que arrancan en el mismo segundo escribieran el
+mismo CSV: ahora el segundo agrega un sufijo `_2`.
+
+### Resultados
+
+**Pruebas sintéticas** (`tests/unit/test_corner_tracker.py`): con una mancha blanca sobre el
+borde inferior, como en la foto del laboratorio, el detector falla y el seguidor recupera las 4
+esquinas a menos de 1.5 px; la posición queda a menos de 1 cm de la real. Sobre una imagen sin
+marcador regresa `None`, sin inventar nada.
+
+**Visión en Tello-Sim-Lab** (secuencias de 240 cuadros con `--glare 0.7` y una lámpara ~49 cm
+detrás de la plataforma, que es donde el espejo inclinado ve su reflejo cuando el dron está
+centrado):
+
+| Trayectoria | Sin reflejo | Con reflejo | Con reflejo **y seguimiento** | Error de lo seguido |
+|---|---|---|---|---|
+| Descenso de 110 a 35 cm | 100 % | 15 % | **77.5 %** | máx. 0.66 cm |
+| Con la mano, bajo (como la foto) | 64 % | 52.5 % | **64.6 %** | máx. 0.05 cm |
+| Siguiendo a 70 cm | 100 % | 79 % | **100 %** | máx. 0.8 cm |
+
+**Misión completa** (8 semillas cada una, `python -m tellosim.batch`):
+
+| Escenario | Sin seguimiento | Con seguimiento |
+|---|---|---|
+| Sin reflejo | — | 8/8 sobre la plataforma, mediana 7 cm |
+| Una lámpara (el reflejo aparece por momentos) | 7/8, mediana 8 cm, máx. **38 cm**; ArUco visible 77 % | **8/8**, mediana 5 cm, máx. **11 cm**; visible **95 %** |
+| Un tubo de luz a todo lo largo del recorrido (reflejo casi siempre) | 0/8 | 1/8; visible 8 % → 18 % |
+
+### Límites
+
+- **Necesita al menos una detección buena:** si el reflejo tapa el borde todo el tiempo
+  (como con el tubo de luz), no hay qué seguir. Ahí la solución es el papel mate.
+- **No reduce el punto ciego final:** el marcador sale de la imagen.
+- **El simulador no tiene desenfoque por movimiento**, así que en el dron real el seguimiento
+  puede durar menos y desviarse más. Por eso hay límites de tiempo y de forma, y las mediciones
+  seguidas pesan menos en el Kalman.
+

@@ -30,7 +30,8 @@ class Navigator:
                  axis_sign_roll=1.0, axis_sign_pitch=-1.0, feedforward_gain=0.0,
                  pid_x=None, pid_y=None, kalman=None,
                  reset_after_lost_s=3.0, target_vel_decay_s=3.0, max_target_speed_cm_s=80.0,
-                 vision_latency_s=0.0, reversal=None, rc_deadband=0.0, clock=time.time):
+                 vision_latency_s=0.0, reversal=None, rc_deadband=0.0, tracked_noise_scale=2.0,
+                 clock=time.time):
         self.clock = clock
 
         # Controladores PID para X (Roll) y Y (Pitch)
@@ -60,6 +61,8 @@ class Navigator:
         self.vision_latency_s = vision_latency_s
         # El Tello ignora comandos rc chicos: se suma este valor a todo comando no nulo
         self.rc_deadband = rc_deadband
+        # Una posición SEGUIDA por flujo óptico (no detectada) se toma con más ruido
+        self.tracked_noise_scale = tracked_noise_scale
 
         # Aprende cada cuánto cambia de sentido la plataforma (ver reversal_predictor.py)
         self.reversal = ReversalPredictor(**(reversal or {}), clock=clock)
@@ -94,9 +97,10 @@ class Navigator:
             return float("inf")
         return self.clock() - self.last_seen_time
 
-    def update(self, pos_cm, drone_speed_x, drone_speed_y, dt=None):
+    def update(self, pos_cm, drone_speed_x, drone_speed_y, dt=None, tracked=False):
         """
         pos_cm: (X, Y, Z) del PnP o None si no se ve el ArUco.
+        tracked: True si pos_cm salió del seguimiento de esquinas y no del detector.
         drone_speed_x/y: velocidad CRUDA del Tello (las unidades que reporte, se escalan aquí).
         """
         now = self.clock()
@@ -131,8 +135,9 @@ class Navigator:
             vt_x, vt_y = self.target_vel
             meas_x = pos_cm[0] + (vt_x - w_x) * self.vision_latency_s
             meas_y = pos_cm[1] + (vt_y - w_y) * self.vision_latency_s
-            self.kalman_x.update(meas_x)
-            self.kalman_y.update(meas_y)
+            noise = self.tracked_noise_scale if tracked else 1.0
+            self.kalman_x.update(meas_x, noise)
+            self.kalman_y.update(meas_y, noise)
             self.last_seen_time = now
         else:
             # Sin visión vamos "olvidando" la velocidad de la plataforma poco a poco

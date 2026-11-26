@@ -263,12 +263,13 @@ def main():
             # 1. VISIÓN
             frame_limpio, ids, pos_cm = vision.update(driver.get_frame())
             is_visible = pos_cm is not None
+            source = vision.last_source  # "detected", "tracked" (flujo óptico) o None
 
             # 2. SENSORES
             telem = driver.get_telemetry()
 
             # 3. ESTIMACIÓN (Kalman) - corre siempre, aunque estemos en tierra
-            navigator.update(pos_cm, telem["vel_x"], telem["vel_y"], dt)
+            navigator.update(pos_cm, telem["vel_x"], telem["vel_y"], dt, tracked=source == "tracked")
 
             # 4. DECISIÓN (FSM) con el error estimado, no el crudo
             error_xy = navigator.error_xy if navigator.has_track else None
@@ -309,6 +310,8 @@ def main():
             if period_s is not None:
                 extra.append(f"Cambio de sentido cada {period_s:.1f}s, proximo en "
                              f"{navigator.reversal.time_to_next_reversal():+.1f}s")
+            if source == "tracked":
+                extra.append("ARUCO SEGUIDO (flujo optico)")
             if ctx["gate_msg"]:
                 extra.append(ctx["gate_msg"])
             if dry_run:
@@ -321,7 +324,7 @@ def main():
                 cv2.imshow("TMR Landing", frame_hud)
                 logger.write_frame(frame_hud)
 
-            logger.log(dt=dt, state=state, visible=int(is_visible),
+            logger.log(dt=dt, state=state, visible=int(is_visible), source=source or "",
                        raw_x=pos_cm[0] if is_visible else None,
                        raw_y=pos_cm[1] if is_visible else None,
                        raw_z=pos_cm[2] if is_visible else None,

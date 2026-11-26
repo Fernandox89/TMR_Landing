@@ -5,7 +5,7 @@ import time
 import cv2
 
 COLUMNS = [
-    "t", "dt", "state", "visible",
+    "t", "dt", "state", "visible", "source",   # source: detected / tracked (flujo óptico) / vacío
     "raw_x", "raw_y", "raw_z",          # PnP crudo (cm)
     "est_x", "est_y",                   # Kalman: posición estimada (cm)
     "vt_x", "vt_y",                     # Kalman: velocidad estimada de la plataforma (cm/s)
@@ -34,8 +34,15 @@ class FlightLogger:
             directory = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), directory)
         os.makedirs(directory, exist_ok=True)
         stamp = time.strftime("%Y%m%d_%H%M%S")
-        self.base_path = os.path.join(directory, stamp)
-        self.csv_file = open(self.base_path + ".csv", "w", newline="")
+        # Dos programas que arrancan en el mismo segundo (p. ej. varias corridas en el simulador)
+        # no deben escribir el mismo archivo: modo "x" falla si ya existe y se prueba otro nombre.
+        for k in range(1, 1000):
+            self.base_path = os.path.join(directory, stamp if k == 1 else f"{stamp}_{k}")
+            try:
+                self.csv_file = open(self.base_path + ".csv", "x", newline="")
+                break
+            except FileExistsError:
+                continue
         self.writer = csv.DictWriter(self.csv_file, fieldnames=COLUMNS)
         self.writer.writeheader()
         print(f"[LOG] Guardando vuelo en {self.base_path}.csv")

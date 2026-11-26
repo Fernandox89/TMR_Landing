@@ -22,6 +22,7 @@ TMR_Landing/
 ├── vision/
 │   ├── image_processor.py     # Mirror correction (flip) + color conversion
 │   ├── aruco_tracker.py       # ArUco detection + PnP pose (cm)
+│   ├── corner_tracker.py      # Optical-flow corner tracking when detection fails (glare)
 │   └── vision_system.py       # Facade: raw frame -> clean frame + position
 ├── control/
 │   ├── tello_driver.py        # djitellopy wrapper (rc, takeoff, land, emergency, telemetry)

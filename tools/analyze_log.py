@@ -174,6 +174,10 @@ def tracking_section(c):
     print(f"  error estimado RMS: x = {np.sqrt(np.mean(ex ** 2)):.1f} cm   y = {np.sqrt(np.mean(ey ** 2)):.1f} cm")
     vis = c["visible"][ok]
     print(f"  ArUco visible el {100 * np.mean(vis):.0f}% del tiempo")
+    if "source" in c:
+        src = c["source"][ok]
+        tracked = np.mean(src == "tracked") if len(src) else 0.0
+        print(f"    detectado {100 * np.mean(src == 'detected'):.0f}%, seguido por flujo óptico {100 * tracked:.0f}%")
     vtx, vty = c["vt_x"][ok], c["vt_y"][ok]
     print(f"  velocidad estimada de la plataforma: |x| p90 = {np.percentile(np.abs(vtx), 90):.1f} cm/s"
           f"   |y| p90 = {np.percentile(np.abs(vty), 90):.1f} cm/s")
